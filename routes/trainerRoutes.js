@@ -9,6 +9,6 @@ const router = express.Router()
 
 router.post('/register', registerTrainer)
 router.post('/login', loginTrainer)
-router.post('/fetchAll', getAllTrainers)
+router.get('/fetchAll', getAllTrainers)
 
 export default router

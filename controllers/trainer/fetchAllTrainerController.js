@@ -2,10 +2,7 @@ import Trainers from '../../models/Trainers.js'
 
 export const getAllTrainers = async (req, res) => {
 	try {
-		const trainers = await Trainers.find().populate(
-			'preferred_gyms',
-			'name location'
-		) // optional: populate gym info
+		const trainers = await Trainers.find() // optional: populate gym info
 
 		res.status(200).json({
 			message: 'List of all trainers',
