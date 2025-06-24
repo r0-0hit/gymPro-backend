@@ -1,6 +1,6 @@
 import Gyms from '../../models/Gyms.js'
 import Schedules from '../../models/Schedules.js'
-import dayjs from 'dayjs' // make sure you have: npm install dayjs
+import dayjs from 'dayjs'
 
 export const deleteGym = async (req, res) => {
 	const { id } = req.params
