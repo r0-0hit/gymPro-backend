@@ -6,7 +6,7 @@ import {
 
 const router = express.Router()
 
-router.post('/register', registerAdmin)
-router.post('/login', loginAdmin)
+router.post('/register', registerAdmin) // POST /api/admins/register
+router.post('/login', loginAdmin) // POST /api/admins/login
 
 export default router
