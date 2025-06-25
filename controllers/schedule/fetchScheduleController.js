@@ -69,18 +69,19 @@ export const getThisWeeksSchedulesByTrainer = async (req, res) => {
 	const { start, end } = getThisWeekRange()
 
 	try {
-		const schedules = await Schedule.find({
-			trainer: trainerId,
-			date: { $gte: start, $lte: end },
-		})
+		const schedules = await Schedule.find({ trainer: trainerId })
 			.populate('gym')
 			.populate('class')
-			.sort({ date: 1 })
+			.sort({ createdAt: 1 }) // fallback sort
+
+		const filtered = schedules.filter(
+			(s) => s.class?.date && s.class.date >= start && s.class.date <= end
+		)
 
 		res.status(200).json({
 			message: "This week's schedules for trainer",
-			count: schedules.length,
-			schedules,
+			count: filtered.length,
+			schedules: filtered,
 		})
 	} catch (error) {
 		res.status(500).json({
@@ -95,13 +96,14 @@ export const getThisWeeksSchedulesByGym = async (req, res) => {
 	const { start, end } = getThisWeekRange()
 
 	try {
-		const schedules = await Schedule.find({
-			gym: gymId,
-			date: { $gte: start, $lte: end },
-		})
-			.populate('trainer')
+		const schedules = await Schedule.find({ trainer: trainerId })
+			.populate('gym')
 			.populate('class')
-			.sort({ date: 1 })
+			.sort({ createdAt: 1 }) // fallback sort
+
+		const filtered = schedules.filter(
+			(s) => s.class?.date && s.class.date >= start && s.class.date <= end
+		)
 
 		res.status(200).json({
 			message: "This week's schedules for gym",
