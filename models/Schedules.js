@@ -12,7 +12,6 @@ const scheduleSchema = new mongoose.Schema({
 		ref: 'Class',
 		required: true,
 	},
-	date: { type: Date, required: true },
 	status: {
 		type: String,
 		enum: ['Scheduled', 'Completed', 'Cancelled'],
