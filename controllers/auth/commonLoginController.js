@@ -26,7 +26,7 @@ export const commonLogin = async (req, res) => {
 			res.status(200).json({
 				message: 'Login successful',
 				token: generateToken(user._id, 'trainer'),
-				trainer: {
+				user: {
 					id: user._id,
 					name: user.name,
 					email: user.email,
@@ -47,7 +47,7 @@ export const commonLogin = async (req, res) => {
 				res.status(200).json({
 					message: 'Login successful',
 					token: generateToken(user._id, 'gym'),
-					gum: {
+					user: {
 						id: user._id,
 						name: user.name,
 						email: user.email,
@@ -67,7 +67,7 @@ export const commonLogin = async (req, res) => {
 				res.status(200).json({
 					message: 'Login successful',
 					token: generateToken(user._id, 'admin'),
-					admin: {
+					user: {
 						id: user._id,
 						name: user.name,
 						email: user.email,
