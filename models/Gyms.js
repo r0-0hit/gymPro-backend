@@ -11,6 +11,7 @@ const gymSchema = new mongoose.Schema({
 		required: true,
 	},
 	classes: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Class' }],
+	createdAt: { type: Date, default: Date.now },
 })
 
 // Hash password before saving

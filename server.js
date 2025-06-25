@@ -6,6 +6,7 @@ import commonLoginRoutes from './routes/commonLoginRoutes.js'
 import trainerRoutes from './routes/trainerRoutes.js'
 import gymRoutes from './routes/gymRoutes.js'
 import adminRoutes from './routes/adminRoutes.js'
+import setupCronJobs from './cron/scheduler.js'
 
 const PORT = process.env.PORT || 5000
 
@@ -18,8 +19,8 @@ connectDB()
 app.use(cors()) // Enable CORS for all routes
 app.use(express.json())
 
-// Middleware
-app.use(express.json())
+// Setup cron jobs
+setupCronJobs()
 
 // Routes
 app.use('/api/users', commonLoginRoutes)
