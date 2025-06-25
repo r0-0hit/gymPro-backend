@@ -96,7 +96,7 @@ export const getThisWeeksSchedulesByGym = async (req, res) => {
 	const { start, end } = getThisWeekRange()
 
 	try {
-		const schedules = await Schedule.find({ trainer: trainerId })
+		const schedules = await Schedule.find({ gym: gymId })
 			.populate('gym')
 			.populate('class')
 			.sort({ createdAt: 1 }) // fallback sort
@@ -107,8 +107,8 @@ export const getThisWeeksSchedulesByGym = async (req, res) => {
 
 		res.status(200).json({
 			message: "This week's schedules for gym",
-			count: schedules.length,
-			schedules,
+			count: filtered.length,
+			schedules: filtered,
 		})
 	} catch (error) {
 		res.status(500).json({
