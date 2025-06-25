@@ -9,6 +9,7 @@ const classSchema = new mongoose.Schema({
 		endTime: String, // e.g., "10:00"
 	},
 	assigned_trainer: { type: mongoose.Schema.Types.ObjectId, ref: 'Trainer' },
+	date: { type: Date, required: true },
 	createdAt: { type: Date, default: Date.now },
 })
 

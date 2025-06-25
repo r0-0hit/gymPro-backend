@@ -7,6 +7,7 @@ import trainerRoutes from './routes/trainerRoutes.js'
 import gymRoutes from './routes/gymRoutes.js'
 import adminRoutes from './routes/adminRoutes.js'
 import setupCronJobs from './cron/scheduler.js'
+import scheduleRoutes from './routes/scheduleRoutes.js'
 
 const PORT = process.env.PORT || 5000
 
@@ -27,6 +28,7 @@ app.use('/api/users', commonLoginRoutes)
 app.use('/api/trainers', trainerRoutes)
 app.use('/api/gyms', gymRoutes)
 app.use('/api/admins', adminRoutes)
+app.use('/api/schedules', scheduleRoutes)
 
 // Start server
 app.listen(PORT, () => {
