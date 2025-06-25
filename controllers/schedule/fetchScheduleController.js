@@ -99,6 +99,7 @@ export const getThisWeeksSchedulesByGym = async (req, res) => {
 		const schedules = await Schedule.find({ gym: gymId })
 			.populate('gym')
 			.populate('class')
+			.populate('trainer')
 			.sort({ createdAt: 1 }) // fallback sort
 
 		const filtered = schedules.filter(
