@@ -11,5 +11,6 @@ router.get('/trainer/:trainerId', getSchedulesByTrainer) // GET /api/schedules/t
 router.get('/gym/:gymId', getSchedulesByGym) // GET /api/schedules/gym/:gymId
 router.get('/trainer/:trainerId/week', getThisWeeksSchedulesByTrainer) // GET /api/schedules/trainer/:trainerId/week
 router.get('/gym/:gymId/week', getThisWeeksSchedulesByGym) // GET /api/schedules/gym/:gymId/week
+router.get('/fetchAll', getAllSchedules) // GET /api/schedules/fetchAll
 
 export default router

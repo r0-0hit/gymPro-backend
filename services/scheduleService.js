@@ -1,269 +1,177 @@
-// File: services/scheduleService.js
-import Schedule from '../models/Schedules.js'
+// import Class from '../models/Classes.js'
+// import Trainer from '../models/Trainers.js'
+// import Schedule from '../models/Schedules.js'
+// import {
+// 	getWeekRange,
+// 	isWithinAvailability,
+// 	hasRestPeriod,
+// } from '../utils/scheduleUtils.js'
+// import { notifySchedules } from '../services/notificationService.js'
+
+// /**
+//  * Generates and saves the weekly schedule based on:
+//  * - Class dates in the upcoming week
+//  * - Trainer skills match
+//  * - Trainer availability slots
+//  * - Rest period between assignments
+//  * - Even distribution of classes
+//  * After scheduling, sends email notifications
+//  */
+// export async function generateWeeklySchedule() {
+// 	const { start, end } = getWeekRange(new Date())
+
+// 	// Fetch all classes scheduled for next week
+// 	const classes = await Class.find({ date: { $gte: start, $lte: end } })
+// 	console.log(start, end, classes.length, 'classes found')
+
+// 	// Fetch all active trainers
+// 	const trainers = await Trainer.find()
+
+// 	// Track assignment counts
+// 	const assignmentCount = trainers.reduce((acc, t) => {
+// 		acc[t._id] = 0
+// 		return acc
+// 	}, {})
+
+// 	const scheduledEntries = []
+
+// 	const unassignedClasses = []
+
+// 	for (const cls of classes) {
+// 		const eligible = trainers.filter((t) => {
+// 			const hasSkill = cls.skill_required.every((skill) =>
+// 				t.skills.includes(skill)
+// 			)
+// 			const available = isWithinAvailability(t.availability, cls.date)
+// 			const rested = hasRestPeriod(t, cls.date)
+// 			return hasSkill && available && rested
+// 		})
+
+// 		eligible.sort((a, b) => assignmentCount[a._id] - assignmentCount[b._id])
+
+// 		if (eligible.length) {
+// 			const selected = eligible[0]
+// 			assignmentCount[selected._id]++
+
+// 			const entry = new Schedule({
+// 				gym: cls.gym,
+// 				trainer: selected._id,
+// 				class: cls._id,
+// 				status: 'Scheduled',
+// 			})
+// 			scheduledEntries.push(entry.save())
+// 		} else {
+// 			unassignedClasses.push(cls)
+// 		}
+// 	}
+
+// 	const savedSchedules = await Promise.all(scheduledEntries)
+
+// 	const populatedSchedules = await Schedule.find({
+// 		_id: { $in: savedSchedules.map((s) => s._id) },
+// 	})
+// 		.populate('class')
+// 		.populate('trainer')
+// 		.populate('gym')
+
+// 	// Notify everyone
+// 	await notifySchedules(populatedSchedules, unassignedClasses)
+
+// 	return populatedSchedules
+// }
+
+// services/scheduleService.js
 import Class from '../models/Classes.js'
 import Trainer from '../models/Trainers.js'
-import Gym from '../models/Gyms.js'
-import nodemailer from 'nodemailer'
-import mongoose from 'mongoose'
+import Schedule from '../models/Schedules.js'
+import {
+	getWeekRange,
+	isWithinAvailability,
+	hasRestPeriod,
+} from '../utils/scheduleUtils.js'
+import { notifySchedules } from '../services/notificationService.js'
 
-function getDateForDay(dayName) {
-	const today = new Date()
-	const dayIndex = [
-		'Sunday',
-		'Monday',
-		'Tuesday',
-		'Wednesday',
-		'Thursday',
-		'Friday',
-		'Saturday',
-	].indexOf(dayName)
-	const diff = (dayIndex + 7 - today.getDay()) % 7
-	const date = new Date(today)
-	date.setDate(today.getDate() + diff)
-	return date
-}
+/**
+ * Generates and saves the weekly schedule based on:
+ * - Class dates in the upcoming week
+ * - Trainer skills match (at least one required skill)
+ * - Trainer availability slots
+ * - Rest period between assignments
+ * - Even distribution of classes
+ * After scheduling, sends email notifications
+ */
+export async function generateWeeklySchedule() {
+	const { start, end } = getWeekRange(new Date())
+	console.log(start, end, 'week range')
 
-function timeOverlap(slot1, slot2, restHours = 1) {
-	const buffer = restHours * 60
-	const toMinutes = (t) => {
-		const [h, m] = t.split(':').map(Number)
-		return h * 60 + m
-	}
-	const s1 = toMinutes(slot1.startTime)
-	const e1 = toMinutes(slot1.endTime)
-	const s2 = toMinutes(slot2.startTime)
-	const e2 = toMinutes(slot2.endTime)
-	return !(e1 + buffer <= s2 || e2 + buffer <= s1)
-}
+	// Fetch classes within this week
+	const classes = await Class.find({ date: { $gte: start, $lte: end } })
+	console.log(classes.length, 'classes found')
 
-function getDayNameFromDate(date) {
-	return new Date(date).toLocaleString('en-US', { weekday: 'long' })
-}
+	// Fetch all trainers
+	const trainers = await Trainer.find()
 
-async function sendEmail(to, subject, html) {
-	const transporter = nodemailer.createTransport({
-		service: 'gmail',
-		auth: {
-			user: process.env.EMAIL_USER,
-			pass: process.env.EMAIL_PASS,
-		},
-	})
+	// Track assignment counts for load balancing
+	const assignmentCount = trainers.reduce((acc, t) => {
+		acc[t._id] = 0
+		return acc
+	}, {})
 
-	await transporter.sendMail({
-		from: process.env.EMAIL_USER,
-		to,
-		subject,
-		html,
-	})
-}
+	const schedulePromises = []
+	const unassignedClasses = []
 
-async function notifyAdminAndGym(gymEmail, adminEmail, message) {
-	const html = `<p>${message}</p>`
-	if (gymEmail) await sendEmail(gymEmail, 'Unassigned Class Alert', html)
-	if (adminEmail) await sendEmail(adminEmail, 'Unassigned Class Alert', html)
-}
+	for (const cls of classes) {
+		console.log(`Scheduling class ${cls.name} on ${cls.date.toISOString()}`)
 
-export const generateWeeklySchedule = async () => {
-	const classes = await Class.find({}).populate('gym')
-	const trainers = await Trainer.find({})
-	const days = [
-		'Monday',
-		'Tuesday',
-		'Wednesday',
-		'Thursday',
-		'Friday',
-		'Saturday',
-		'Sunday',
-	]
-	const schedule = []
-	const unassigned = []
-
-	for (const classObj of classes) {
-		const { skill_required, time_slot, gym } = classObj
-		let assigned = false
-
-		for (const day of days) {
-			const matchingTrainers = trainers.filter(
-				(tr) =>
-					tr.skills.includes(skill_required) &&
-					tr.availability.some(
-						(av) =>
-							av.day === day &&
-							av.startTime <= time_slot.startTime &&
-							av.endTime >= time_slot.endTime
-					)
+		// Find eligible trainers
+		const eligible = trainers.filter((t) => {
+			// Match at least one required skill
+			const hasSkill = cls.skill_required.some((skill) =>
+				t.skills.includes(skill)
 			)
-
-			for (const trainer of matchingTrainers) {
-				const date = getDateForDay(day)
-				const existingSchedules = await Schedule.find({
-					trainer: trainer._id,
-					date,
-				})
-
-				const conflict = await Promise.all(
-					existingSchedules.map(async (sch) => {
-						const scheduledClass = await Class.findById(sch.class)
-						return timeOverlap(
-							scheduledClass.time_slot,
-							time_slot,
-							trainer.rest_period
-						)
-					})
-				)
-
-				if (!conflict.includes(true)) {
-					const scheduled = await Schedule.create({
-						gym: gym._id,
-						trainer: trainer._id,
-						class: classObj._id,
-						date,
-					})
-					schedule.push(scheduled)
-					assigned = true
-					break
-				}
-			}
-			if (assigned) break
-		}
-
-		if (!assigned) {
-			unassigned.push(classObj)
-			const adminEmail = process.env.ADMIN_EMAIL || ''
-			await notifyAdminAndGym(
-				gym.email,
-				adminEmail,
-				`Class '${classObj.name}' at gym '${gym.name}' was not assigned to any trainer.`
+			const available = isWithinAvailability(t.availability, cls.date)
+			const rested = hasRestPeriod(t, cls.date)
+			console.log(
+				`Trainer ${t.name}: hasSkill=${hasSkill}, available=${available}, rested=${rested}`
 			)
-		}
-	}
-	return schedule
-}
+			return hasSkill && available && rested
+		})
 
-export const handleCancellation = async (scheduleId) => {
-	const schedule = await Schedule.findById(scheduleId).populate(
-		'class trainer gym'
-	)
-	if (!schedule) throw new Error('Schedule not found')
+		// Balance load by sorting on assignment count
+		eligible.sort((a, b) => assignmentCount[a._id] - assignmentCount[b._id])
 
-	schedule.status = 'Cancelled'
-	await schedule.save()
+		if (eligible.length) {
+			const selected = eligible[0]
+			assignmentCount[selected._id]++
+			console.log(`Assigned to ${selected.name}`)
 
-	const { class: classObj, date, gym } = schedule
-	const skill = classObj.skill_required
-	const time_slot = classObj.time_slot
-	const day = getDayNameFromDate(date)
-	const adminEmail = process.env.ADMIN_EMAIL || ''
-
-	const availableTrainers = await Trainer.find({
-		skills: skill,
-		preferred_gyms: gym._id,
-		availability: {
-			$elemMatch: {
-				day,
-				startTime: { $lte: time_slot.startTime },
-				endTime: { $gte: time_slot.endTime },
-			},
-		},
-	})
-
-	for (const trainer of availableTrainers) {
-		const existing = await Schedule.find({ trainer: trainer._id, date })
-		const conflict = await Promise.all(
-			existing.map(async (sch) => {
-				const cls = await Class.findById(sch.class)
-				return timeOverlap(
-					cls.time_slot,
-					time_slot,
-					trainer.rest_period
-				)
-			})
-		)
-
-		if (!conflict.includes(true)) {
-			const newSchedule = await Schedule.create({
-				gym: gym._id,
-				trainer: trainer._id,
-				class: classObj._id,
-				date,
+			// Create and save schedule
+			const entry = new Schedule({
+				gym: cls.gym,
+				trainer: selected._id,
+				class: cls._id,
 				status: 'Scheduled',
 			})
-
-			await sendEmail(
-				trainer.email,
-				'Class Replacement Assigned',
-				`<p>You have been assigned to replace a class for skill: ${skill} on ${day}, ${date.toDateString()} at ${
-					time_slot.startTime
-				}.</p>`
-			)
-			await sendEmail(
-				gym.email,
-				'Trainer Replacement Assigned',
-				`<p>${trainer.name} has been assigned to a replacement class '${classObj.name}' on ${day}.</p>`
-			)
-			await sendEmail(
-				adminEmail,
-				'Trainer Replacement Assigned',
-				`<p>Replacement trainer ${trainer.name} was assigned for class '${classObj.name}' on ${day} at gym '${gym.name}'.</p>`
-			)
-
-			return newSchedule
-		}
-	}
-
-	await sendEmail(
-		gym.email,
-		'Trainer Replacement Failed',
-		`<p>No replacement trainer could be found for class '${classObj.name}' on ${day}.</p>`
-	)
-	await sendEmail(
-		adminEmail,
-		'Trainer Replacement Failed',
-		`<p>No replacement trainer could be found for class '${classObj.name}' on ${day} at gym '${gym.name}'.</p>`
-	)
-	return null
-}
-
-// --- CONTROLLER FUNCTIONS ---
-
-export const generateWeeklyScheduleController = async (req, res) => {
-	try {
-		const result = await generateWeeklySchedule()
-		res.status(200).json({
-			message: 'Weekly schedule generated successfully',
-			schedule: result,
-		})
-	} catch (err) {
-		res.status(500).json({
-			message: 'Failed to generate schedule',
-			error: err.message,
-		})
-	}
-}
-
-export const cancelAndFindReplacementController = async (req, res) => {
-	try {
-		const { id } = req.params
-		const replacement = await handleCancellation(id)
-
-		if (replacement) {
-			res.status(200).json({
-				message: 'Trainer replaced successfully',
-				replacement,
-			})
+			schedulePromises.push(entry.save())
 		} else {
-			res.status(200).json({
-				message: 'Trainer cancelled, but no replacement found',
-			})
+			console.log(`No eligible trainer for class ${cls.name}`)
+			unassignedClasses.push(cls)
 		}
-	} catch (err) {
-		res.status(500).json({
-			message: 'Failed to cancel and find replacement',
-			error: err.message,
-		})
 	}
-}
 
-// --- ROUTES SETUP (Example) ---
-// router.post('/schedule/generate-weekly', generateWeeklyScheduleController)
-// router.post('/schedule/cancel/:id', cancelAndFindReplacementController)
+	// Wait for all saves
+	const savedSchedules = await Promise.all(schedulePromises)
+
+	// Populate references for notifications
+	const populatedSchedules = await Schedule.find({
+		_id: { $in: savedSchedules.map((s) => s._id) },
+	})
+		.populate('class')
+		.populate('trainer')
+		.populate('gym')
+
+	// Send notifications
+	await notifySchedules(populatedSchedules, unassignedClasses)
+
+	return populatedSchedules
+}
