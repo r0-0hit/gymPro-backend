@@ -108,7 +108,8 @@ export async function rescheduleClass(oldTrainerId, scheduleId) {
 			? schedule.gym
 			: await Gym.findById(schedule.gym)
 		await sendEmail({ to: gymData.email, subject, html })
-		throw new Error('No eligible trainers for rescheduling')
+		// throw new Error('No eligible trainers for rescheduling')
+		return 'No eligible trainers for rescheduling'
 	}
 
 	// Create new schedule with replacement trainer
