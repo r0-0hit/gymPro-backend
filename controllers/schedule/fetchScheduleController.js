@@ -118,3 +118,23 @@ export const getThisWeeksSchedulesByGym = async (req, res) => {
 		})
 	}
 }
+
+export const getAllSchedules = async (req, res) => {
+	try {
+		const schedules = await Schedule.find()
+			.populate('trainer')
+			.populate('class')
+			.sort({ date: 1 })
+
+		res.status(200).json({
+			message: 'All schedules fetched successfully',
+			count: schedules.length,
+			schedules,
+		})
+	} catch (error) {
+		res.status(500).json({
+			message: 'Error fetching gym schedules',
+			error: error.message,
+		})
+	}
+}

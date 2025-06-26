@@ -4,6 +4,7 @@ import {
 	getSchedulesByGym,
 	getThisWeeksSchedulesByTrainer,
 	getThisWeeksSchedulesByGym,
+	getAllSchedules,
 } from '../controllers/schedule/fetchScheduleController.js  '
 const router = express.Router()
 
