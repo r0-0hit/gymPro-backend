@@ -1,131 +1,9 @@
-// import Schedule from '../models/Schedules.js'
-// import Gym from '../models/Gyms.js'
-// import Trainer from '../models/Trainers.js'
-// import {
-// 	formatSchedulesForEmail,
-// 	formatUnassignedClassesForEmail,
-// } from '../utils/emailFormatter.js'
-// import { sendEmail } from '../utils/emailService.js'
-
-// /**
-//  * Notify admin, gyms, and trainers with their schedules
-//  */
-// // export async function notifySchedules(schedules) {
-// // 	// Admin: all schedules
-// // 	const adminHtml = formatSchedulesForEmail(schedules)
-// // 	await sendEmail({
-// // 		to: process.env.ADMIN_EMAIL,
-// // 		subject: 'Weekly Full Schedule',
-// // 		html: adminHtml,
-// // 	})
-
-// // 	// Group by gym
-// // 	const byGym = schedules.reduce((acc, s) => {
-// // 		acc[s.gym] = acc[s.gym] || []
-// // 		acc[s.gym].push(s)
-// // 		return acc
-// // 	}, {})
-
-// // 	// Send to each gym
-// // 	for (const gymId of Object.keys(byGym)) {
-// // 		const gym = await Gym.findById(gymId)
-// // 		const html = formatSchedulesForEmail(byGym[gymId])
-// // 		await sendEmail({
-// // 			to: gym.email,
-// // 			subject: 'Your Weekly Gym Schedule',
-// // 			html,
-// // 		})
-// // 	}
-
-// // 	// Group by trainer
-// // 	const byTrainer = schedules.reduce((acc, s) => {
-// // 		acc[s.trainer] = acc[s.trainer] || []
-// // 		acc[s.trainer].push(s)
-// // 		return acc
-// // 	}, {})
-
-// // 	// Send to each trainer
-// // 	for (const trainerId of Object.keys(byTrainer)) {
-// // 		const trainer = await Trainer.findById(trainerId)
-// // 		const html = formatSchedulesForEmail(byTrainer[trainerId])
-// // 		await sendEmail({
-// // 			to: trainer.email,
-// // 			subject: 'Your Weekly Schedule',
-// // 			html,
-// // 		})
-// // 	}
-// // }
-
-// export async function notifySchedules(schedules, unassigned = []) {
-// 	// Full schedule to admin
-// 	const adminHtml = formatSchedulesForEmail(schedules)
-// 	const unassignedHtml = formatUnassignedClassesForEmail(unassigned)
-// 	await sendEmail({
-// 		to: process.env.ADMIN_EMAIL,
-// 		subject: 'Weekly Full Schedule + Unassigned Classes',
-// 		html: `${adminHtml}<hr/><h2>Unassigned Classes</h2>${unassignedHtml}`,
-// 	})
-
-// 	// Group unassigned by gym
-// 	const unassignedByGym = unassigned.reduce((acc, cls) => {
-// 		acc[cls.gym] = acc[cls.gym] || []
-// 		acc[cls.gym].push(cls)
-// 		return acc
-// 	}, {})
-
-// 	// Notify each gym with their schedules and missed ones
-// 	const byGym = schedules.reduce((acc, s) => {
-// 		acc[s.gym] = acc[s.gym] || []
-// 		acc[s.gym].push(s)
-// 		return acc
-// 	}, {})
-
-// 	for (const gymId of new Set([
-// 		...Object.keys(byGym),
-// 		...Object.keys(unassignedByGym),
-// 	])) {
-// 		const gym = await Gym.findById(gymId)
-// 		const gymSchedules = byGym[gymId] || []
-// 		const gymUnassigned = unassignedByGym[gymId] || []
-
-// 		const htmlScheduled = formatSchedulesForEmail(gymSchedules)
-// 		const htmlUnassigned = formatUnassignedClassesForEmail(gymUnassigned)
-
-// 		await sendEmail({
-// 			to: gym.email,
-// 			subject: 'Your Weekly Gym Schedule',
-// 			html: `${htmlScheduled}${
-// 				gymUnassigned.length
-// 					? '<hr/><h2>Unassigned Classes</h2>' + htmlUnassigned
-// 					: ''
-// 			}`,
-// 		})
-// 	}
-
-// 	// Trainers — no change
-// 	const byTrainer = schedules.reduce((acc, s) => {
-// 		acc[s.trainer] = acc[s.trainer] || []
-// 		acc[s.trainer].push(s)
-// 		return acc
-// 	}, {})
-
-// 	for (const trainerId of Object.keys(byTrainer)) {
-// 		const trainer = await Trainer.findById(trainerId)
-// 		const html = formatSchedulesForEmail(byTrainer[trainerId])
-// 		await sendEmail({
-// 			to: trainer.email,
-// 			subject: 'Your Weekly Schedule',
-// 			html,
-// 		})
-// 	}
-// }
-
-// services/notificationService.js
 import Gym from '../models/Gyms.js'
 import Trainer from '../models/Trainers.js'
 import {
 	formatSchedulesForEmail,
 	formatUnassignedClassesForEmail,
+	formatRescheduleEmail,
 } from '../utils/emailFormatter.js'
 import { sendEmail } from '../utils/emailService.js'
 
@@ -199,4 +77,53 @@ export async function notifySchedules(schedules, unassigned = []) {
 			html: formatSchedulesForEmail(trainerSchedules),
 		})
 	}
+}
+
+export async function notifyReschedule(schedule, oldTrainerId, newTrainer) {
+	const { class: cls, gym, trainer } = schedule
+	// Admin
+	await Mailer.send({
+		to: process.env.ADMIN_EMAIL,
+		subject: 'Class Rescheduled',
+		html: formatRescheduleEmail(schedule, gym, cls, trainer, oldTrainerId),
+	})
+	// Gym
+	const gymData = gym.email ? gym : await Gym.findById(gym)
+	await Mailer.send({
+		to: gymData.email,
+		subject: 'A Class Has Been Rescheduled',
+		html: formatRescheduleEmail(
+			schedule,
+			gymData,
+			cls,
+			trainer,
+			oldTrainerId
+		),
+	})
+	// New trainer
+	await Mailer.send({
+		to: newTrainer.email,
+		subject: 'New Class Assignment',
+		html: formatRescheduleEmail(
+			schedule,
+			gymData,
+			cls,
+			trainer,
+			oldTrainerId
+		),
+	})
+	// Old trainer
+	const oldTrainer = await Trainer.findById(oldTrainerId)
+	await Mailer.send({
+		to: oldTrainer.email,
+		subject: 'Class Cancellation Notice',
+		html: formatRescheduleEmail(
+			schedule,
+			gymData,
+			cls,
+			trainer,
+			oldTrainerId,
+			true
+		),
+	})
 }

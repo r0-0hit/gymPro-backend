@@ -44,3 +44,25 @@ export function formatUnassignedClassesForEmail(classes) {
     </table>
   `
 }
+
+export function formatRescheduleEmail(
+	schedule,
+	gym,
+	cls,
+	newTrainer,
+	oldTrainerId,
+	isCancellation = false
+) {
+	const date = moment(cls.date).format('dddd, MMM Do YYYY, HH:mm')
+	const oldTrainerText = isCancellation
+		? 'Your class has been cancelled by the gym.'
+		: ''
+	return `
+    <h1>Reschedule Notification</h1>
+    <p>Class: ${cls.name}</p>
+    <p>Date: ${date}</p>
+    <p>Gym: ${gym.name}</p>
+    <p>New Trainer: ${newTrainer.name}</p>
+    <p>${oldTrainerText}</p>
+  `
+}
