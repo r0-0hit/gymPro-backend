@@ -82,14 +82,14 @@ export async function notifySchedules(schedules, unassigned = []) {
 export async function notifyReschedule(schedule, oldTrainerId, newTrainer) {
 	const { class: cls, gym, trainer } = schedule
 	// Admin
-	await Mailer.send({
+	await sendEmail({
 		to: process.env.ADMIN_EMAIL,
 		subject: 'Class Rescheduled',
 		html: formatRescheduleEmail(schedule, gym, cls, trainer, oldTrainerId),
 	})
 	// Gym
 	const gymData = gym.email ? gym : await Gym.findById(gym)
-	await Mailer.send({
+	await sendEmail({
 		to: gymData.email,
 		subject: 'A Class Has Been Rescheduled',
 		html: formatRescheduleEmail(
@@ -101,7 +101,7 @@ export async function notifyReschedule(schedule, oldTrainerId, newTrainer) {
 		),
 	})
 	// New trainer
-	await Mailer.send({
+	await sendEmail({
 		to: newTrainer.email,
 		subject: 'New Class Assignment',
 		html: formatRescheduleEmail(
@@ -114,7 +114,7 @@ export async function notifyReschedule(schedule, oldTrainerId, newTrainer) {
 	})
 	// Old trainer
 	const oldTrainer = await Trainer.findById(oldTrainerId)
-	await Mailer.send({
+	await sendEmail({
 		to: oldTrainer.email,
 		subject: 'Class Cancellation Notice',
 		html: formatRescheduleEmail(

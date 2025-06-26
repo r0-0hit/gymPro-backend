@@ -2,6 +2,8 @@ import Schedule from '../models/Schedules.js'
 import Trainer from '../models/Trainers.js'
 import { isWithinAvailability, hasRestPeriod } from '../utils/scheduleUtils.js'
 import { notifyReschedule } from './notificationService.js'
+import moment from 'moment'
+import { sendEmail } from '../utils/emailService.js'
 
 // export async function rescheduleClass(oldTrainerId, scheduleId) {
 // 	// Fetch existing schedule
@@ -93,8 +95,21 @@ export async function rescheduleClass(oldTrainerId, scheduleId) {
 				(countMap[b._id.toString()] || 0)
 		)
 
-	if (!eligible.length)
+	// if (!eligible.length)
+	// 	throw new Error('No eligible trainers for rescheduling')
+
+	if (!eligible.length) {
+		// Notify admin and gym about unfilled class
+		const dateStr = moment(cls.date).format('dddd, MMM Do YYYY, HH:mm')
+		const subject = 'Unfilled Class Notification'
+		const html = `<p>Trainer ${schedule.trainer.name} canceled the class "${cls.name}" scheduled on ${dateStr}. No eligible replacement trainer was found.</p>`
+		await sendEmail({ to: process.env.ADMIN_EMAIL, subject, html })
+		const gymData = schedule.gym.email
+			? schedule.gym
+			: await Gym.findById(schedule.gym)
+		await sendEmail({ to: gymData.email, subject, html })
 		throw new Error('No eligible trainers for rescheduling')
+	}
 
 	// Create new schedule with replacement trainer
 	const newSchedule = new Schedule({

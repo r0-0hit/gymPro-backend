@@ -1,4 +1,3 @@
-// utils/scheduleUtils.js
 import moment from 'moment'
 
 export function getWeekRange(referenceDate) {
